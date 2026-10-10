@@ -301,7 +301,7 @@ export async function sleep(ms: number): Promise<void> {
 }
 
 export function listDirAllCommand(dir: string): string {
-  return `cd ${shlex.quote(dir)} && find . -not -path '*/_runner_hook_responses*' -exec stat -c '%s %n' {} \\;`
+  return `cd ${shlex.quote(dir)} && find . -not -path '*/_runner_hook_responses*' -exec stat -c '%s %n' -- {} +`
 }
 
 // Copy verification v2 keeps every included entry, but directory allocation
@@ -309,10 +309,9 @@ export function listDirAllCommand(dir: string): string {
 // a stable record; keep the existing size/path records for all other entries.
 // This is separate from the raw listing contract used by other callers.
 export function listDirVerificationCommand(dir: string): string {
-  // Correctness control: one stat process per entry, with failures propagated
-  // by the bounded find-exec batch (plain `-exec ... ;` loses child failures).
+  // find bounds argument batches and propagates any stat failure.
   const stat = (format: string): string =>
-    `-exec sh -c 'for entry do stat -c "$0" -- "$entry" || exit; done' ${shlex.quote(format)} {} +`
+    `-exec stat -c ${shlex.quote(format)} -- {} +`
   return (
     `cd ${shlex.quote(dir)} && find . -not -path '*/_runner_hook_responses*' ` +
     `\\( -type d ${stat('d %n')} -o ! -type d ${stat('%s %n')} \\)`
