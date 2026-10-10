@@ -18,6 +18,7 @@ import {
   mergeObjectMeta,
   fixArgs,
   listDirAllCommand,
+  listDirVerificationCommand,
   sleep,
   EXTERNALS_VOLUME_NAME,
   GITHUB_VOLUME_NAME,
@@ -517,7 +518,7 @@ export async function execCpToPod(
     }
   }
 
-  let attempts = 15
+  const attempts = 15
   const delay = 1000
   for (let i = 0; i < attempts; i++) {
     try {
@@ -527,7 +528,7 @@ export async function execCpToPod(
           localCalculateOutputHashSorted([
             'sh',
             '-c',
-            listDirAllCommand(runnerPath)
+            listDirVerificationCommand(runnerPath)
           ]),
         i + 1
       )
@@ -538,7 +539,7 @@ export async function execCpToPod(
           execCalculateOutputHashSorted(podName, JOB_CONTAINER_NAME, [
             'sh',
             '-c',
-            listDirAllCommand(containerPath)
+            listDirVerificationCommand(containerPath)
           ]),
         i + 1
       )
@@ -552,12 +553,13 @@ export async function execCpToPod(
         continue
       }
 
-      break
+      return
     } catch (error) {
       core.debug(`Attempt ${i + 1} failed: ${error}`)
       await sleep(delay)
     }
   }
+  throw new Error(`cpToPod verification failed after ${attempts} attempts`)
 }
 
 export async function execCpFromPod(

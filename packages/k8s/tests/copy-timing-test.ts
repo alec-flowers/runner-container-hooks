@@ -104,23 +104,23 @@ describe('copy timing diagnostics', () => {
           'directory_permissions',
           'copy_transfer'
         ])
-        // Use the actual listing contract, including on source-pinned releases
-        // that hash directory sizes and can retry even after a correct copy.
+        // A valid tar copy must verify even when directory allocation differs.
         const mismatch =
           (await localCalculateOutputHashSorted([
             'sh',
             '-c',
-            utils.listDirAllCommand(source)
+            utils.listDirVerificationCommand(source)
           ])) !==
           (await localCalculateOutputHashSorted([
             'sh',
             '-c',
-            utils.listDirAllCommand(destination)
+            utils.listDirVerificationCommand(destination)
           ]))
         const comparisons = records.filter(
           record => record.phase === 'verification'
         )
-        expect(comparisons).toHaveLength(mismatch ? 15 : 1)
+        expect(mismatch).toBe(false)
+        expect(comparisons).toHaveLength(1)
         comparisons.forEach((record, i) => {
           expect(record.attempt).toBe(i + 1)
           expect(record.result).toBe(Number(mismatch))
