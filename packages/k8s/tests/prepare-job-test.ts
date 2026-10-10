@@ -3,8 +3,17 @@ import * as path from 'path'
 import { cleanupJob } from '../src/hooks'
 import { createContainerSpec, prepareJob } from '../src/hooks/prepare-job'
 import { TestHelper } from './test-setup'
-import { ENV_HOOK_TEMPLATE_PATH, generateContainerName } from '../src/k8s/utils'
-import { execPodStep, getPodByName } from '../src/k8s'
+import {
+  ENV_HOOK_TEMPLATE_PATH,
+  generateContainerName,
+  listDirVerificationCommand
+} from '../src/k8s/utils'
+import {
+  execPodStep,
+  getPodByName,
+  execCalculateOutputHashSorted,
+  localCalculateOutputHashSorted
+} from '../src/k8s'
 import { V1Container } from '@kubernetes/client-node'
 import { JOB_CONTAINER_NAME } from '../src/hooks/constants'
 
@@ -136,12 +145,43 @@ describe('Prepare job', () => {
   })
 
   it('should determine alpine correctly', async () => {
+    // Compare GNU and BusyBox listings, including destination-only exclusions.
+    const listing = path.join(
+      process.env.RUNNER_TEMP as string,
+      'alpine-listing'
+    )
+    fs.mkdirSync(path.join(listing, 'empty'), { recursive: true })
+    fs.writeFileSync(path.join(listing, 'file'), 'payload')
+    fs.symlinkSync('file', path.join(listing, 'link'))
     prepareJobData.args.container.image = 'alpine:latest'
     await prepareJob(prepareJobData.args, prepareJobOutputFilePath)
     const content = JSON.parse(
       fs.readFileSync(prepareJobOutputFilePath).toString()
     )
     expect(content.isAlpine).toBe(true)
+    const target = '/__w/_temp/alpine-listing'
+    await execPodStep(
+      [
+        'sh',
+        '-c',
+        `mkdir -p ${target}/_runner_hook_responses; touch ${target}/_runner_hook_responses/response ${target}/_runner_hook_responses-file`
+      ],
+      content.state.jobPod,
+      JOB_CONTAINER_NAME
+    )
+    expect(
+      await execCalculateOutputHashSorted(
+        content.state.jobPod,
+        JOB_CONTAINER_NAME,
+        ['sh', '-c', listDirVerificationCommand(target)]
+      )
+    ).toBe(
+      await localCalculateOutputHashSorted([
+        'sh',
+        '-c',
+        listDirVerificationCommand(listing)
+      ])
+    )
   })
 
   it('should run pod with extensions applied', async () => {

@@ -313,8 +313,11 @@ export function listDirVerificationCommand(dir: string): string {
   // by the bounded find-exec batch (plain `-exec ... ;` loses child failures).
   const stat = (format: string): string =>
     `-exec sh -c 'for entry do stat -c "$0" -- "$entry" || exit; done' ${shlex.quote(format)} {} +`
+  // BusyBox does not flush batched exec actions inside a parenthesized group.
+  // Keep both branches top-level, with the exclusion applied independently.
+  const included = "-not -path '*/_runner_hook_responses*'"
   return (
-    `cd ${shlex.quote(dir)} && find . -not -path '*/_runner_hook_responses*' ` +
-    `\\( -type d ${stat('d %n')} -o ! -type d ${stat('%s %n')} \\)`
+    `cd ${shlex.quote(dir)} && find . ${included} -type d ${stat('d %n')} ` +
+    `-o ${included} ! -type d ${stat('%s %n')}`
   )
 }
